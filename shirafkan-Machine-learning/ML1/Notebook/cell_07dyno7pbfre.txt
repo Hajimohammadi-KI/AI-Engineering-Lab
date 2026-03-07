@@ -1,0 +1,170 @@
+
+# ── ساخت ۳ نمودار کنار هم ─────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 3, figsize=(17, 5))
+fig.suptitle("Notes 3 & 4 — MAE: Constant Gradient & Non-Differentiability at Zero",
+             fontsize=13, fontweight="bold")
+
+# ── محور θ مشترک برای همه نمودارها ─────────────────────────────────────────
+theta = np.linspace(-4, 4, 500)  # 500 نقطه در بازه [-4, +4] برای θ
+
+# ── محاسبه توابع هزینه و گرادیان‌ها ─────────────────────────────────────────
+
+# MSE: تابع هموار و پارابولیک
+mse_func = theta ** 2      # J_MSE(θ) = θ²  ← صاف، همه جا مشتق‌پذیر
+mse_grad = 2 * theta       # ∇J_MSE = 2θ  ← گرادیان خطی، با فاصله از صفر بزرگتر می‌شود
+
+# MAE: تابع V-شکل با کِرنک تیز در صفر
+mae_func = np.abs(theta)   # J_MAE(θ) = |θ|  ← V شکل، مشتق ندارد در θ=0
+
+# گرادیان MAE: np.sign یعنی:
+#   sign(θ) = +1  اگر θ > 0
+#   sign(θ) = -1  اگر θ < 0
+#   sign(0) = 0   (اما در واقع تعریف نشده است)
+mae_grad = np.sign(theta)
+
+# حذف نقطه دقیق θ=0 از نمودار گرادیان چون تعریف نشده است
+mae_grad_display = np.where(theta == 0, np.nan, mae_grad)
+# np.where(شرط, مقدار_اگر_درست, مقدار_اگر_غلط)
+# وقتی theta==0 باشد → nan (خالی) → در نمودار نشان داده نمی‌شود
+
+# ── نمودار اول: مقایسه شکل دو تابع هزینه ────────────────────────────────────
+ax = axes[0]
+
+# رسم MSE: منحنی آبی پارابولیک
+ax.plot(theta, mse_func, "steelblue", linewidth=2.5, label="MSE: J(θ) = θ²")
+# رسم MAE: منحنی سبز V-شکل
+ax.plot(theta, mae_func, "green",     linewidth=2.5, label="MAE: J(θ) = |θ|")
+
+# خط عمودی قرمز = محل مینیمم هر دو تابع (هر دو در θ=0 مینیمم دارند)
+ax.axvline(0, color="red", linestyle="--", linewidth=1.5, alpha=0.7, label="Minimum θ*=0")
+# نقطه مینیمم روی نمودار
+ax.scatter([0], [0], color="red", s=100, zorder=6)
+
+ax.set_xlabel("θ  (error / parameter)")  # محور x: خطا یا پارامتر
+ax.set_ylabel("Cost J(θ)")               # محور y: مقدار هزینه
+ax.set_title("Cost Functions Compared\nMSE = smooth bowl  |  MAE = V-shape")
+ax.legend(fontsize=9)
+ax.set_ylim(-0.3, 8)  # محدوده نمایش y
+ax.text(0.02, 0.97,
+        "MSE (blue): smooth parabola\n"   # MSE: پارابولای صاف
+        "  → gradient = 0 at minimum\n"   # گرادیان در مینیمم = 0 (طبیعی)
+        "MAE (green): V-shape\n"           # MAE: V شکل
+        "  → sharp corner at minimum\n"   # گوشه تیز در مینیمم
+        "  → gradient undefined at θ=0",  # گرادیان در θ=0 تعریف نشده
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار دوم: مقایسه گرادیان‌ها ───────────────────────────────────────────
+ax = axes[1]
+
+# رسم گرادیان MSE: خط آبی با شیب ثابت (خطی)
+# هرچه از مینیمم دورتر باشیم، گرادیان بزرگتر است → قدم‌های بزرگتر
+ax.plot(theta, mse_grad, "steelblue", linewidth=2.5, label="∇MSE = 2θ  (linear, grows)")
+
+# رسم گرادیان MAE: خط سبز ثابت (±1)
+# توجه: mae_grad_display در θ=0 مقدار nan دارد → شکاف در نمودار
+ax.plot(theta, mae_grad_display, "green", linewidth=2.5,
+        label="∇MAE = sign(θ) = ±1  (constant!)")
+
+# نشان‌گذاری نقطه کِرنک (θ=0) که مشتق ندارد
+ax.scatter([0], [0], color="red", s=150, marker="o", zorder=6,
+           label="Undefined at θ=0 (kink)")  # دایره توخالی = تعریف نشده
+
+# خطوط راهنما
+ax.axvline(0, color="red", linestyle="--", linewidth=1, alpha=0.5)  # خط عمودی در صفر
+ax.axhline(0, color="grey", linestyle="-",  linewidth=0.5, alpha=0.4)  # محور افقی
+
+# خطوط افقی در ±1 برای نشان دادن ثابت بودن گرادیان MAE
+ax.axhline(+1, color="green", linestyle=":", linewidth=1.5, alpha=0.6)  # گرادیان MAE سمت راست
+ax.axhline(-1, color="green", linestyle=":", linewidth=1.5, alpha=0.6)  # گرادیان MAE سمت چپ
+
+# ناحیه زیرگرادیان: در نقطه θ=0، هر عددی بین -1 و +1 قابل قبول است
+# fill_betweenx(y_range, x_left, x_right): ناحیه بین دو x را پر می‌کند
+ax.fill_betweenx([-1, 1], -0.15, 0.15, alpha=0.2, color="red",
+                  label="Sub-gradient range [−1,+1]")  # زیرگرادیان‌های قابل قبول
+
+ax.set_xlabel("θ  (error / parameter)")
+ax.set_ylabel("Gradient ∇J(θ)")       # مقدار گرادیان
+ax.set_title("Note 3: MAE Gradient is CONSTANT ±1\nNote 4: Undefined at θ=0")
+ax.legend(fontsize=8)
+ax.set_ylim(-2.5, 2.5)  # محدوده نمایش گرادیان
+ax.text(0.02, 0.97,
+        "MSE gradient (blue):\n"         # گرادیان MSE (آبی):
+        "  grows as θ grows\n"           # با فاصله از مینیمم بزرگ می‌شود
+        "  → GD naturally slows near 0\n"# GD به طور طبیعی نزدیک مینیمم کند می‌شود
+        "MAE gradient (green):\n"        # گرادیان MAE (سبز):
+        "  always ±1 regardless of |θ|\n"# همیشه ±1، بدون توجه به فاصله
+        "  → GD never slows down!\n"     # GD هرگز کند نمی‌شود
+        "Red zone = sub-gradients\n"     # ناحیه قرمز = زیرگرادیان‌ها
+        "  used at the kink",            # در نقطه کِرنک استفاده می‌شود
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار سوم: شبیه‌سازی GD برای MSE و MAE ─────────────────────────────────
+ax = axes[2]
+
+alpha_sim  = 0.2    # نرخ یادگیری (یکسان برای هر دو)
+n_steps    = 20     # تعداد گام‌های شبیه‌سازی
+theta_start = 3.5   # نقطه شروع مشترک
+
+# ── شبیه‌سازی گرادیان کاهشی برای MSE ────────────────────────────────────────
+# J(θ) = θ², ∇J(θ) = 2θ
+# قانون به‌روزرسانی: θ_new = θ_old − α·∇J = θ_old − α·2θ_old
+thetas_mse = [theta_start]    # لیست مقادیر θ در هر گام
+for _ in range(n_steps):
+    # محاسبه گرادیان و به‌روزرسانی θ
+    thetas_mse.append(thetas_mse[-1] - alpha_sim * 2 * thetas_mse[-1])
+    # thetas_mse[-1]: آخرین θ در لیست
+    # ضرب در 2: ضریب گرادیان J(θ)=θ² است که مشتقش ∇J=2θ می‌شود
+
+# ── شبیه‌سازی گرادیان کاهشی برای MAE ────────────────────────────────────────
+# J(θ) = |θ|, ∇J(θ) = sign(θ) = ±1
+# قانون به‌روزرسانی: θ_new = θ_old − α·sign(θ_old)
+thetas_mae = [theta_start]
+for _ in range(n_steps):
+    t = thetas_mae[-1]  # θ فعلی
+    if abs(t) < alpha_sim:
+        # اگر θ از نرخ یادگیری کوچکتر باشد، گام بعدی از مینیمم رد می‌شود
+        # برای جلوگیری از نوسان، مستقیماً به مینیمم می‌رویم
+        thetas_mae.append(0.0)
+    else:
+        # قدم عادی: در خلاف جهت sign(θ) حرکت می‌کنیم
+        # np.sign(t): اگر t>0 → +1، اگر t<0 → -1
+        thetas_mae.append(t - alpha_sim * np.sign(t))
+
+# آرایه شاخص گام‌ها برای محور x
+steps_mse = np.arange(len(thetas_mse))
+steps_mae = np.arange(len(thetas_mae))
+
+# رسم مسیر همگرایی MSE
+ax.plot(steps_mse, thetas_mse, "o-", color="steelblue", linewidth=2, markersize=5,
+        label=f"MSE-GD  α={alpha_sim}")
+
+# رسم مسیر همگرایی MAE
+ax.plot(steps_mae, thetas_mae, "s-", color="green",     linewidth=2, markersize=5,
+        label=f"MAE-GD  α={alpha_sim}")
+
+# خط افقی قرمز = مقدار بهینه (مینیمم هر دو تابع = θ*=0)
+ax.axhline(0, color="red", linestyle="--", linewidth=1.5, label="θ* = 0  (optimal)")
+
+ax.set_xlabel("Step number")       # محور x: شماره گام
+ax.set_ylabel("θ  (current value)")  # محور y: مقدار θ در هر گام
+ax.set_title("GD Convergence: MSE vs MAE\n(MAE takes equal steps, then suddenly stops)")
+ax.legend(fontsize=8)
+ax.text(0.35, 0.97,
+        "MSE-GD (blue):\n"          # گرادیان کاهشی MSE (آبی):
+        "  steps shrink naturally\n" # قدم‌ها به طور طبیعی کوچک می‌شوند
+        "  → smooth convergence\n\n" # → همگرایی صاف و پیوسته
+        "MAE-GD (green):\n"          # گرادیان کاهشی MAE (سبز):
+        "  constant step size = α\n" # اندازه گام ثابت = α
+        "  → may oscillate at min\n" # → ممکن است در مینیمم نوسان کند
+        "  → needs adaptive α",      # → نیاز به نرخ یادگیری انطباقی دارد
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+plt.tight_layout()  # تنظیم خودکار فاصله
+plt.show()
+
+# ── خلاصه چاپی ───────────────────────────────────────────────────────────────
+print("Note 3: MAE gradient is always ±1 → GD does not slow near minimum without adaptive learning rate.")
+print("Note 4: MAE is not differentiable at θ=0 → sub-gradients (any value in [-1,+1]) are used in practice.")

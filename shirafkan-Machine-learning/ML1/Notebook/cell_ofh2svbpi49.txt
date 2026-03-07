@@ -1,0 +1,199 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  نکته ۲ — حساسیت به نقاط پرت (Outliers): مقایسه MSE و MAE
+#
+#  در تابع هزینه MSE، خطاها به توان دوم می‌رسند.
+#  یعنی اگر خطای یک نقطه ۱۰ باشد، جریمه آن ۱۰۰ است.
+#  اگر خطا ۲ باشد، جریمه فقط ۴ است.
+#  → یک نقطه پرت با خطای بزرگ، سهم بسیار زیادی در مجموع هزینه دارد.
+#  → مدل تلاش می‌کند به هر قیمتی خطای نقطه پرت را کم کند
+#     و خط رگرسیون را به سمت آن می‌کشد.
+#
+#  در MAE، خطاها به قدرمطلق می‌رسند:
+#  خطای ۱۰ → جریمه ۱۰  (نه ۱۰۰)
+#  → تاثیر نقطه پرت خطی است نه درجه دوم → مقاوم‌تر
+# ══════════════════════════════════════════════════════════════════════════════
+
+import numpy as np          # کتابخانه محاسبات عددی
+import matplotlib.pyplot as plt  # کتابخانه رسم نمودار
+from scipy.optimize import minimize  # برای بهینه‌سازی MAE که حل تحلیلی ندارد
+
+np.random.seed(42)  # تثبیت seed برای تکرارپذیری نتایج
+
+# ── ساخت داده‌های تمیز (بدون نقطه پرت) ────────────────────────────────────
+# x = مقادیر ویژگی (مثلاً متراژ خانه)
+x_clean = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float)
+# y = مقادیر واقعی هدف: y = 2x + 1 + کمی نویز تصادفی
+# np.random.normal(0, 0.5, n): نویز گاوسی با میانگین ۰ و انحراف معیار ۰.۵
+y_clean = 2.0 * x_clean + 1.0 + np.random.normal(0, 0.5, len(x_clean))
+
+# ── اضافه کردن یک نقطه پرت به داده‌ها ──────────────────────────────────────
+# np.append: یک مقدار جدید به انتهای آرایه اضافه می‌کند
+x_out = np.append(x_clean, 5.5)   # x نقطه پرت در وسط بازه (نزدیک میانگین)
+y_out = np.append(y_clean, 25.0)  # y نقطه پرت بسیار بالاتر از روند (باید ≈12 باشد)
+# این نقطه پرت را انتخاب کردیم چون در وسط x قرار دارد
+# و تاثیر بیشتری بر روی شیب خط رگرسیون دارد
+
+# ── برازش خط رگرسیون با MSE (کمترین مربعات) ────────────────────────────────
+# np.polyfit(x, y, 1): رگرسیون خطی = کمینه‌سازی Σ(yhat-y)² = MSE
+# عدد 1 = درجه چندجمله‌ای (خط مستقیم)
+slope_clean, intercept_clean = np.polyfit(x_clean, y_clean, 1)  # بدون نقطه پرت
+slope_out,   intercept_out   = np.polyfit(x_out,   y_out,   1)  # با نقطه پرت
+
+# ── تعریف تابع هزینه MAE برای بهینه‌سازی عددی ─────────────────────────────
+def mae_cost(params, x, y):
+    """
+    MAE = (1/n) · Σ |W·xᵢ + B − yᵢ|
+    params = [W, B]: پارامترهای مدل (شیب و عرض از مبدا)
+    MAE حل تحلیلی بسته‌ای مثل MSE ندارد → باید عددی بهینه شود
+    """
+    W, B = params              # جدا کردن پارامترها از آرگومان ورودی
+    return np.mean(np.abs(W * x + B - y))  # میانگین قدرمطلق خطاها
+
+# بهینه‌سازی عددی برای یافتن W و B که MAE را کمینه می‌کنند
+# x0=[2.0, 1.0]: حدس اولیه (شیب=2، عرض از مبدا=1)
+# method="Nelder-Mead": روش بهینه‌سازی بدون مشتق (مناسب برای MAE که در صفر مشتق ندارد)
+res_mae = minimize(mae_cost, x0=[2.0, 1.0], args=(x_out, y_out), method="Nelder-Mead")
+slope_mae, intercept_mae = res_mae.x  # استخراج پارامترهای بهینه یافته‌شده
+
+# ── تعریف توابع کمکی برای محاسبه MSE و MAE ─────────────────────────────────
+x_line = np.linspace(0, 12, 200)  # 200 نقطه برای رسم خطوط رگرسیون
+
+def mse_val(slope, intercept, x, y):
+    """میانگین مربعات خطا: MSE = (1/n)·Σ(slope·xᵢ + intercept − yᵢ)²"""
+    return np.mean((slope * x + intercept - y)**2)
+
+def mae_val(slope, intercept, x, y):
+    """میانگین قدرمطلق خطا: MAE = (1/n)·Σ|slope·xᵢ + intercept − yᵢ|"""
+    return np.mean(np.abs(slope * x + intercept - y))
+
+# ── چاپ مقایسه عددی ─────────────────────────────────────────────────────────
+print("=" * 60)
+print("Cost comparison at the outlier-contaminated dataset:")
+print(f"  MSE-fit line  — MSE={mse_val(slope_out, intercept_out, x_out, y_out):.2f}  MAE={mae_val(slope_out, intercept_out, x_out, y_out):.2f}")
+print(f"  MAE-fit line  — MSE={mse_val(slope_mae, intercept_mae, x_out, y_out):.2f}  MAE={mae_val(slope_mae, intercept_mae, x_out, y_out):.2f}")
+print(f"  Clean-data fit: slope={slope_clean:.3f}  intercept={intercept_clean:.3f}")
+print(f"  MSE-fit slope : {slope_out:.3f}   (pulled toward outlier)")  # کشیده‌شده به سمت نقطه پرت
+print(f"  MAE-fit slope : {slope_mae:.3f}   (more robust)")            # مقاوم‌تر در برابر پرت
+
+# ── ساخت ۳ نمودار کنار هم ─────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 3, figsize=(17, 5))
+fig.suptitle("Note 2 — Outlier Sensitivity: MSE (squared) vs MAE (absolute)",
+             fontsize=13, fontweight="bold")
+
+# ── نمودار اول (چپ): نمایش خطوط رگرسیون ─────────────────────────────────────
+ax = axes[0]
+# رسم نقاط عادی با دایره آبی
+ax.scatter(x_clean, y_clean, color="steelblue", s=60, zorder=5, label="Normal points")
+# رسم نقطه پرت با ستاره قرمز بزرگ (zorder=6 یعنی روی نقاط دیگر قرار می‌گیرد)
+ax.scatter([5.5], [25.0], color="red", s=200, marker="*", zorder=6, label="Outlier")
+
+# خط آبی نقطه‌چین: روند واقعی داده‌ها (بدون تاثیر نقطه پرت)
+ax.plot(x_line, slope_clean * x_line + intercept_clean, "steelblue",
+        linestyle="--", linewidth=2, label=f"True trend (no outlier)\nslope≈{slope_clean:.2f}")
+
+# خط نارنجی: برازش MSE با نقطه پرت — کشیده‌شده به سمت نقطه پرت
+ax.plot(x_line, slope_out * x_line + intercept_out, "darkorange",
+        linewidth=2.5, label=f"MSE fit (with outlier)\nslope≈{slope_out:.2f}")
+
+# خط سبز نقطه‌چین: برازش MAE با نقطه پرت — نزدیک‌تر به روند واقعی
+ax.plot(x_line, slope_mae * x_line + intercept_mae, "green",
+        linewidth=2.5, linestyle="-.", label=f"MAE fit (robust)\nslope≈{slope_mae:.2f}")
+
+ax.set_xlabel("x")            # برچسب محور افقی
+ax.set_ylabel("y")            # برچسب محور عمودی
+ax.set_title("Regression Lines\n(blue=true, orange=MSE-fit, green=MAE-fit)")
+ax.legend(fontsize=8)
+ax.set_xlim(0, 12)            # محدوده نمایش x
+ax.set_ylim(0, 30)            # محدوده نمایش y
+ax.text(0.02, 0.25,
+        "MSE line is PULLED toward\n"   # خط MSE کشیده می‌شود به سمت نقطه پرت
+        "the outlier (orange shifts up).\n"
+        "MAE line stays close to\n"     # خط MAE نزدیک روند واقعی می‌ماند
+        "the true trend (green).",
+        transform=ax.transAxes, fontsize=8,
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار دوم (میانی): مقایسه اندازه خطاهای مربع‌شده vs قدرمطلق ───────────
+ax = axes[1]
+
+# محاسبه پیش‌بینی مدل MSE برای همه نقاط (شامل نقطه پرت)
+y_pred_mse = slope_out * x_out + intercept_out  # ŷᵢ = W·xᵢ + B
+
+residuals = y_out - y_pred_mse  # خطاها: rᵢ = yᵢ − ŷᵢ  (واقعی منهای پیش‌بینی)
+sq_res = residuals ** 2         # خطاهای مربع‌شده: rᵢ² (برای MSE)
+ab_res = np.abs(residuals)      # قدرمطلق خطاها: |rᵢ| (برای MAE)
+
+# رسم نمودار میله‌ای مقایسه‌ای
+width = 0.35     # عرض هر میله
+idx   = np.arange(len(x_out))  # شاخص نقاط داده [0,1,2,...,10]
+
+# میله‌های نارنجی: خطاهای مربع‌شده (MSE)
+bars1 = ax.bar(idx - width/2, sq_res, width, color="darkorange", alpha=0.8,
+               label="Squared residual (MSE)")
+# میله‌های سبز: قدرمطلق خطاها (MAE)
+bars2 = ax.bar(idx + width/2, ab_res, width, color="green",      alpha=0.8,
+               label="|Residual| (MAE)")
+
+# برجسته‌سازی میله مربوط به نقطه پرت (آخرین نقطه)
+ax.bar([len(x_out)-1 - width/2], [sq_res[-1]], width, color="red",       alpha=0.9,
+       label="Outlier (squared)")    # خطای مربع‌شده نقطه پرت = بسیار بزرگ!
+ax.bar([len(x_out)-1 + width/2], [ab_res[-1]], width, color="darkgreen",  alpha=0.9,
+       label="Outlier (absolute)")   # قدرمطلق خطای نقطه پرت = همان مقیاس
+
+ax.set_xlabel("Data point index")   # شاخص نقطه داده
+ax.set_ylabel("Residual magnitude") # اندازه خطا
+ax.set_title("Residuals: Squared (MSE) vs Absolute (MAE)\n(outlier = last bar)")
+ax.legend(fontsize=7)
+ax.text(0.02, 0.97,
+        "Outlier squared residual:\n"
+        f"  r² = {sq_res[-1]:.1f}  ← enormous!\n"  # خطای مربع‌شده نقطه پرت عظیم است
+        f"  |r| = {ab_res[-1]:.1f}  ← same scale\n"  # قدرمطلق همان مقیاس
+        "MSE punishes outliers\n"         # MSE نقاط پرت را شدیداً جریمه می‌کند
+        "quadratically → model\n"         # به صورت درجه دوم
+        "desperately tries to\n"
+        "reduce that huge bar.",
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار سوم (راست): سطح هزینه MSE و MAE نسبت به شیب W ────────────────────
+ax = axes[2]
+
+# محدوده مقادیر W برای رسم سطح هزینه
+W_range = np.linspace(-1, 5, 300)
+B_fixed = intercept_out  # B را ثابت نگه می‌داریم و فقط W تغییر می‌کند
+
+# محاسبه هزینه MSE و MAE برای هر مقدار W
+# list comprehension: برای هر w در بازه، هزینه را محاسبه کن
+mse_curve = [mse_val(w, B_fixed, x_out, y_out) for w in W_range]
+mae_curve = [mae_val(w, B_fixed, x_out, y_out) for w in W_range]
+
+# نرمال‌سازی برای مقایسه بصری (هر دو منحنی به مقیاس [0,1] برده می‌شوند)
+mse_norm = np.array(mse_curve) / max(mse_curve)  # تقسیم بر بیشینه MSE
+mae_norm = np.array(mae_curve) / max(mae_curve)  # تقسیم بر بیشینه MAE
+
+# رسم منحنی‌های هزینه
+ax.plot(W_range, mse_norm, "darkorange", linewidth=2.5, label="MSE cost (normalized)")
+ax.plot(W_range, mae_norm, "green",      linewidth=2.5, linestyle="-.", label="MAE cost (normalized)")
+
+# خطوط عمودی در محل مینیمم هر تابع هزینه
+ax.axvline(slope_out,   color="darkorange", linestyle=":", alpha=0.7,
+           label=f"MSE minimum W≈{slope_out:.2f}")   # مینیمم MSE دورتر از روند واقعی
+ax.axvline(slope_mae,   color="green",      linestyle=":", alpha=0.7,
+           label=f"MAE minimum W≈{slope_mae:.2f}")   # مینیمم MAE نزدیک‌تر به روند واقعی
+ax.axvline(slope_clean, color="steelblue",  linestyle="--", alpha=0.7,
+           label=f"True slope W≈{slope_clean:.2f}")  # شیب واقعی (بدون پرت)
+
+ax.set_xlabel("W (slope)")           # محور افقی: مقدار شیب
+ax.set_ylabel("Normalized cost")     # محور عمودی: هزینه نرمال‌شده
+ax.set_title("Cost vs Slope\n(MSE minimum shifts more than MAE)")
+ax.legend(fontsize=7.5)
+ax.text(0.02, 0.97,
+        "MSE minimum (orange dashed)\n"    # مینیمم MSE (نارنجی)
+        "shifts further from true slope\n" # بیشتر از شیب واقعی فاصله می‌گیرد
+        "than MAE minimum (green dashed).\n"
+        "→ MSE is more outlier-sensitive.",  # → MSE حساس‌تر به نقاط پرت است
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+plt.tight_layout()  # تنظیم خودکار فاصله بین نمودارها
+plt.show()

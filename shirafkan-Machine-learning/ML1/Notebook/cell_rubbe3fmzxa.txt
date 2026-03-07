@@ -1,0 +1,162 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  نکات ۱ و ۵ — محدب بودن MSE  +  جهت بردار گرادیان
+#
+#  نکته ۱: تابع هزینه MSE در رگرسیون خطی همواره کاملاً محدب (Convex) است.
+#           فضای پارامترها شبیه یک کاسه بی‌نقص است — هیچ مینیمم محلی ندارد.
+#           هر مینیممی که گرادیان کاهشی بیابد، قطعاً مینیمم مطلق (Global) است.
+#
+#  نکته ۵: بردار گرادیان (∇J) در هر نقطه از فضای پارامترها،
+#           همواره به سمت شیب‌دارترین مسیر صعود (بالا رفتن) اشاره می‌کند.
+#           الگوریتم گرادیان کاهشی در خلاف جهت این بردار حرکت می‌کند (= پایین می‌رود).
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── ساخت فضای نمایش: ۳ نمودار کنار هم ─────────────────────────────────────
+fig, axes = plt.subplots(1, 3, figsize=(17, 5))
+# عنوان کلی پنجره
+fig.suptitle("Note 1 & 5 — MSE is Convex | Gradient Always Points Uphill",
+             fontsize=13, fontweight="bold")
+
+# ── نمودار چپ: کاسه دو‌بعدی (یک پارامتر W) ─────────────────────────────────
+ax = axes[0]
+
+# محور افقی: مقادیر مختلف W از -3 تا 7
+W_vals = np.linspace(-3, 7, 300)
+# تابع هزینه ساده: J(W) = (W-2)² — پارابولا با مینیمم در W=2
+# این فرم ساده‌شده MSE است برای نمایش محدب بودن
+J_vals = (W_vals - 2) ** 2
+
+# رسم منحنی تابع هزینه با خط مشکی ضخیم
+ax.plot(W_vals, J_vals, "k-", linewidth=2.5, label="J(W) — MSE cost")
+ax.set_xlabel("W  (weight parameter)")  # برچسب محور افقی: مقدار وزن
+ax.set_ylabel("J(W)  (cost)")           # برچسب محور عمودی: مقدار هزینه
+ax.set_title("2-D Convex Bowl\n(one parameter)")  # عنوان نمودار
+
+# نشان‌گذاری نقطه مینیمم با خط عمودی قرمز در W=2
+ax.axvline(2, color="red", linestyle="--", linewidth=1.5, label="W* = 2 (global min)")
+# نقطه قرمز دقیقاً روی کف کاسه (W=2, J=0)
+ax.scatter([2], [0], color="red", s=100, zorder=6)
+# توضیح متنی با فلش به سمت مینیمم
+ax.annotate("Global\nMinimum\n(only one!)",
+            xy=(2, 0),           # مختصات نوک فلش = نقطه مینیمم
+            xytext=(3.5, 3),     # مختصات متن توضیحی
+            arrowprops=dict(arrowstyle="->", color="red"), fontsize=9, color="red")
+
+# ── رسم فلش‌های گرادیان در دو طرف کاسه ─────────────────────────────────────
+# هدف: نشان دادن اینکه گرادیان همواره به سمت بالا اشاره می‌کند
+for W_pt, direction in [(-1, -1), (5, 1)]:  # -1 = سمت چپ، +1 = سمت راست
+    grad = 2 * (W_pt - 2)        # محاسبه گرادیان: ∇J(W) = 2·(W-2) = d/dW[(W-2)²]
+    J_pt = (W_pt - 2) ** 2       # مقدار تابع هزینه در این نقطه
+
+    # رسم فلش نارنجی از نقطه فعلی به سمت بالا (جهت گرادیان = صعود)
+    ax.annotate("",
+                xy     =(W_pt + 0.8*np.sign(grad), J_pt + 0.8*abs(grad)),  # نوک فلش (بالاتر)
+                xytext =(W_pt, J_pt),   # پایه فلش (نقطه فعلی)
+                arrowprops=dict(arrowstyle="->", color="darkorange", lw=2))
+    # برچسب متنی کنار فلش
+    ax.text(W_pt + 0.1*np.sign(grad), J_pt + 0.5, "∇J\n(uphill)",
+            fontsize=8, color="darkorange", ha="center")
+
+ax.legend(fontsize=8)
+ax.set_ylim(-1, 28)  # محدوده محور عمودی
+# جعبه توضیحات: خلاصه مفهوم در گوشه نمودار
+ax.text(0.02, 0.97,
+        "Key: bowl shape = CONVEX\n"                  # شکل کاسه = محدب
+        "→ no local minima exist\n"                   # مینیمم محلی وجود ندارد
+        "→ gradient always leads to\n"                # گرادیان همیشه می‌برد به
+        "   the same global minimum\n"                # همان مینیمم مطلق
+        "Orange arrows = gradient ∇J\n"               # فلش نارنجی = گرادیان
+        "  (always points UPHILL)",                   # همیشه به بالا اشاره دارد
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار میانی: سطح سه‌بعدی J(W, B) ──────────────────────────────────────
+# این نمودار نشان می‌دهد که با دو پارامتر هم، کاسه محدب است
+ax_mid = fig.add_subplot(1, 3, 2, projection="3d")  # نمودار سه‌بعدی در وسط
+
+# ساخت شبکه مختصات برای W و B
+W_grid = np.linspace(-2, 6, 60)  # 60 نقطه برای W از -2 تا 6
+B_grid = np.linspace(-2, 6, 60)  # 60 نقطه برای B از -2 تا 6
+WW, BB = np.meshgrid(W_grid, B_grid)  # ساخت ماتریس دوبعدی از تمام ترکیبات W و B
+
+# محاسبه تابع هزینه برای همه ترکیبات W و B
+# J(W,B) = (W-2)² + (B-1)² — دو پارابولا که با هم جمع شده‌اند
+# مینیمم در W*=2, B*=1 است که J=0 می‌دهد
+JJ = (WW - 2)**2 + (BB - 1)**2
+
+# رسم سطح سه‌بعدی با رنگ‌بندی گرما (آبی=کم، قرمز=زیاد)
+surf = ax_mid.plot_surface(WW, BB, JJ,
+                            cmap="coolwarm",  # رنگ‌بندی گرما-سرما
+                            alpha=0.85,       # شفافیت: کمی شفاف
+                            linewidth=0,      # بدون خطوط شبکه
+                            antialiased=True) # لبه‌های صاف
+
+# برچسب‌های محورها
+ax_mid.set_xlabel("W")
+ax_mid.set_ylabel("B")
+ax_mid.set_zlabel("J(W,B)")
+ax_mid.set_title("3-D Convex Bowl\n(two parameters W, B)")
+
+# نقطه مینیمم سه‌بعدی با ستاره قرمز
+ax_mid.scatter([2], [1], [0], color="red", s=100, zorder=10)
+ax_mid.text(2, 1, 3, "  Global\n  Minimum", color="red", fontsize=9)
+
+# نوار رنگ برای راهنمای مقدار هزینه
+fig.colorbar(surf, ax=ax_mid, shrink=0.5, label="Cost J")
+
+# ── نمودار راست: مقایسه جهت گرادیان و جهت گرادیان کاهشی ───────────────────
+ax = axes[2]
+
+# رسم مجدد منحنی تابع هزینه
+ax.plot(W_vals, J_vals, "k-", linewidth=2, label="J(W)")
+# خط عمودی قرمز = محل مینیمم
+ax.axvline(2, color="red", linestyle="--", linewidth=1.5)
+
+# ── نمایش نقطه‌ای روی کاسه برای مقایسه دو جهت ──────────────────────────────
+W_ex = 4.5           # نقطه‌ای روی شیب راست کاسه (بالاتر از مینیمم)
+J_ex = (W_ex - 2) ** 2   # مقدار هزینه در این نقطه = (4.5-2)² = 6.25
+g_ex = 2 * (W_ex - 2)    # گرادیان در این نقطه = 2·(4.5-2) = +5  (مثبت = سمت راست)
+
+# فلش نارنجی: جهت گرادیان (∇J) — به سمت بالا (صعود)
+# این جهتی است که تابع هزینه افزایش می‌یابد
+ax.annotate("",
+            xy=(W_ex + 0.9, J_ex + 0.9 * g_ex),   # نوک فلش: به سمت راست و بالا
+            xytext=(W_ex, J_ex),                    # پایه فلش: نقطه فعلی
+            arrowprops=dict(arrowstyle="->", color="darkorange", lw=2.5))
+ax.text(W_ex + 0.3, J_ex + g_ex * 0.5 + 0.5,
+        "∇J  (gradient)\npoints UPHILL",  # گرادیان به بالا اشاره می‌کند
+        fontsize=8, color="darkorange")
+
+# فلش آبی: جهت گرادیان کاهشی (−α·∇J) — در خلاف جهت گرادیان = پایین
+# الگوریتم در این جهت حرکت می‌کند تا به مینیمم برسد
+ax.annotate("",
+            xy=(W_ex - 0.9, J_ex - 0.3),   # نوک فلش: به سمت چپ و پایین
+            xytext=(W_ex, J_ex),            # پایه فلش: نقطه فعلی
+            arrowprops=dict(arrowstyle="->", color="steelblue", lw=2.5))
+ax.text(W_ex - 2.5, J_ex - 1.5,
+        "−∇J  (GD step)\npoints DOWNHILL",  # گام GD به پایین اشاره می‌کند
+        fontsize=8, color="steelblue")
+
+# نشان‌گذاری نقطه فعلی با دایره مشکی
+ax.scatter([W_ex], [J_ex], color="black", s=80, zorder=6, label=f"Current W={W_ex}")
+ax.set_xlabel("W")
+ax.set_ylabel("J(W)")
+ax.set_title("Note 5 — Gradient Direction\nvs Gradient Descent Direction")
+ax.legend(fontsize=8)
+ax.set_ylim(-1, 28)
+
+# جعبه توضیحات نهایی
+ax.text(0.02, 0.97,
+        "Orange arrow = gradient ∇J\n"        # فلش نارنجی = گرادیان
+        "  direction of steepest ASCENT\n"    # جهت تندترین صعود
+        "Blue arrow   = −α·∇J\n"             # فلش آبی = گام گرادیان کاهشی
+        "  gradient descent moves\n"          # GD در این جهت حرکت می‌کند
+        "  OPPOSITE → toward minimum",        # مخالف گرادیان → به سمت مینیمم
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+plt.tight_layout()   # فاصله‌گذاری خودکار بین نمودارها
+plt.show()
+
+# ── خلاصه چاپی ───────────────────────────────────────────────────────────────
+print("Note 1: MSE is convex — one bowl, one global minimum, gradient descent always finds it.")
+print("Note 5: ∇J always points uphill. GD steps in direction −α·∇J (opposite = downhill).")

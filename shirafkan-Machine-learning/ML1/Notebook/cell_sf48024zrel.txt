@@ -1,0 +1,180 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  نکات ۷ و ۸ — نرخ یادگیری  +  کاهش طبیعی اندازه گام
+#
+#  نکته ۷: نرخ یادگیری α مشخص می‌کند چه کسری از بردار گرادیان در
+#           به‌روزرسانی وزن‌ها اعمال شود.
+#
+#           α خیلی کوچک: مثل مورچه‌ای که یک‌میلیمتر یک‌میلیمتر پایین می‌رود
+#              → همگرایی فرسایشی، هزاران تکرار لازم است
+#
+#           α درست: گام‌های کافی بزرگ برای رسیدن به مینیمم در تعداد معقولی تکرار
+#              → بهترین حالت
+#
+#           α خیلی بزرگ: مثل فردی که با قدم‌های بزرگ از روی مینیمم می‌پرد
+#              → نوسان، احتمالاً واگرایی کامل (J به جای کاهش، افزایش می‌یابد)
+#
+#  نکته ۸: در توابع هزینه محدب مثل MSE، هرچه به مینیمم نزدیک‌تر شویم،
+#           اندازه بردار گرادیان (شیب خط مماس) به طور طبیعی کوچک‌تر می‌شود.
+#           → حتی با α ثابت، گام‌های آخر خودبه‌خود ریزتر می‌شوند
+#           → نوعی "تنظیم دقیق خودکار" نزدیک مینیمم
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── ساخت شبکه ۲×۳ از نمودارها ───────────────────────────────────────────────
+# ردیف بالا: منحنی J(θ) با مسیر GD
+# ردیف پایین: مسیر θ در طول زمان + اندازه گام‌ها
+fig, axes = plt.subplots(2, 3, figsize=(17, 10))
+fig.suptitle("Notes 7 & 8 — Learning Rate Effects | Natural Step Size Reduction (MSE)",
+             fontsize=13, fontweight="bold")
+
+# ── تعریف تابع هزینه و گرادیان آن ──────────────────────────────────────────
+def J(t):
+    """تابع هزینه: J(θ) = (θ-2)²  — مینیمم در θ*=2, J(2)=0"""
+    return (t - 2) ** 2
+
+def gJ(t):
+    """گرادیان تابع هزینه: ∇J(θ) = d/dθ[(θ-2)²] = 2·(θ-2)"""
+    return 2 * (t - 2)
+
+# محور افقی برای رسم منحنی هزینه
+theta_range = np.linspace(-1, 5.5, 300)  # 300 نقطه از -1 تا 5.5
+
+# ── تعریف سه سناریوی نرخ یادگیری ─────────────────────────────────────────────
+# هر سناریو یک رنگ و تعداد گام متفاوت دارد
+scenarios = [
+    {"alpha": 0.05, "label": "α=0.05  (too small — slow)",     "color": "steelblue",  "n": 40},
+    {"alpha": 0.45, "label": "α=0.45  (just right — fast)",    "color": "green",      "n": 15},
+    {"alpha": 1.05, "label": "α=1.05  (too large — diverges)", "color": "crimson",    "n": 10},
+]
+
+# ── حلقه روی سه سناریو (ستون‌های 0، 1، 2) ───────────────────────────────────
+for col, sc in enumerate(scenarios):
+    alpha   = sc["alpha"]   # نرخ یادگیری این سناریو
+    color   = sc["color"]   # رنگ این سناریو
+    n_steps = sc["n"]       # تعداد گام‌های شبیه‌سازی
+
+    # ── شبیه‌سازی مسیر گرادیان کاهشی ────────────────────────────────────────
+    # قانون به‌روزرسانی: θ_new = θ_old − α · ∇J(θ_old)
+    theta_traj = [0.0]   # شروع از θ=0 (نقطه شروع ثابت برای همه سناریوها)
+
+    for _ in range(n_steps - 1):
+        t_new = theta_traj[-1] - alpha * gJ(theta_traj[-1])
+        # theta_traj[-1]: آخرین θ محاسبه‌شده
+        # gJ(theta_traj[-1]): گرادیان در θ فعلی
+        # alpha * gJ(...): اندازه گام
+        theta_traj.append(t_new)
+
+        if abs(t_new) > 20:   # شرط توقف اضطراری: اگر θ خیلی بزرگ شد (واگرایی)
+            break
+
+    theta_traj = np.array(theta_traj)        # تبدیل لیست به آرایه NumPy
+    steps_arr  = np.arange(len(theta_traj))  # [0, 1, 2, ...] شاخص گام‌ها
+
+    # ══════════════════════════════════════════════════════════════
+    #  ردیف بالا: منحنی J(θ) و مسیر GD روی آن
+    # ══════════════════════════════════════════════════════════════
+    ax = axes[0, col]
+
+    # رسم منحنی تابع هزینه (کاسه)
+    ax.plot(theta_range, J(theta_range), "k-", linewidth=2, label="J(θ)")
+
+    # رسم نقاط θ روی منحنی (هر نقطه = یک گام GD)
+    ax.scatter(theta_traj, J(theta_traj), color=color, s=50, zorder=5)
+
+    # رسم فلش‌های حرکت بین گام‌ها (فقط 8 گام اول برای خوانایی)
+    for i in range(min(len(theta_traj)-1, 8)):
+        ax.annotate("",
+                    xy    =(theta_traj[i+1], J(theta_traj[i+1])),  # نوک فلش: گام بعدی
+                    xytext=(theta_traj[i],   J(theta_traj[i])),    # پایه فلش: گام فعلی
+                    arrowprops=dict(arrowstyle="->", color=color, lw=1.5))
+
+    # خط عمودی قرمز = محل مینیمم (θ*=2)
+    ax.axvline(2, color="red", linestyle="--", linewidth=1.5)
+
+    # عنوان ستون با رنگ متناسب
+    ax.set_title(sc["label"], fontsize=10, fontweight="bold", color=color)
+    ax.set_xlabel("θ")        # محور x: پارامتر
+    ax.set_ylabel("J(θ)")     # محور y: هزینه
+    ax.set_ylim(-0.5, min(max(J(theta_traj)) + 1, 30))  # محدوده y (برای واگرایی محدود می‌شود)
+    ax.set_xlim(-1.5, 6)       # محدوده x
+
+    # جعبه توضیحات رفتار
+    if alpha < 0.2:
+        # α کوچک: گام‌های ریز، همگرایی آهسته اما پایدار
+        note = "Many tiny steps\n→ slow but stable"
+    elif alpha < 1.0:
+        # α مناسب: تعادل بین سرعت و پایداری
+        note = "Efficient steps\n→ fast convergence"
+    else:
+        # α بزرگ: گام‌ها از مینیمم می‌پرند، واگرایی
+        note = "Steps too big!\nOvershoots repeatedly\n→ DIVERGES"
+    ax.text(0.02, 0.97, note, transform=ax.transAxes, fontsize=8, va="top",
+            bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+    # ══════════════════════════════════════════════════════════════
+    #  ردیف پایین: مسیر θ و اندازه گام‌ها در طول زمان
+    # ══════════════════════════════════════════════════════════════
+    ax2 = axes[1, col]
+
+    # رسم مقدار θ در هر گام
+    ax2.plot(steps_arr, theta_traj, "o-", color=color, linewidth=2, markersize=5)
+
+    # خط افقی قرمز = مقدار بهینه θ*=2
+    ax2.axhline(2, color="red", linestyle="--", linewidth=1.5, label="θ*=2 (optimal)")
+
+    # ── رسم اندازه گام‌ها با محور y دوم ──────────────────────────────────────
+    if len(theta_traj) > 1:
+        # |Δθ|: اندازه هر گام = تغییر θ بین دو گام متوالی
+        # np.diff: تفاوت بین المان‌های متوالی آرایه
+        step_sizes = np.abs(np.diff(theta_traj))
+
+        # ساخت محور y دوم (سمت راست) برای نمایش اندازه گام
+        ax2_twin = ax2.twinx()  # twinx: محور y دوم با همان محور x
+
+        # رسم نمودار میله‌ای اندازه گام‌ها
+        # steps_arr[:-1] + 0.5: مرکز هر گام (بین گام i و i+1)
+        ax2_twin.bar(steps_arr[:-1] + 0.5, step_sizes,
+                     alpha=0.25,   # شفافیت بالا تا نمودار اصلی دیده شود
+                     color=color,
+                     label="|Δθ|  (step size)")  # اندازه هر گام
+
+        ax2_twin.set_ylabel("|Δθ|  step size", fontsize=8, color=color)
+        ax2_twin.tick_params(axis="y", colors=color)  # رنگ تیک‌های محور y دوم
+
+    ax2.set_xlabel("Step number")           # محور x: شماره گام
+    ax2.set_ylabel("θ  (parameter value)")  # محور y: مقدار θ
+    ax2.set_title(f"θ trajectory  |  {sc['label']}", fontsize=9, color=color)
+    ax2.legend(fontsize=8, loc="upper left")
+
+    # ── جعبه توضیح نکته ۸ (کاهش طبیعی گام) ──────────────────────────────────
+    if alpha < 0.5:
+        # نکته ۸: در MSE، هرچه به مینیمم نزدیک‌تر می‌شویم،
+        # گرادیان = 2(θ-2) کوچکتر می‌شود → گام = α·گرادیان هم کوچکتر می‌شود
+        note2 = ("Note 8: As θ→θ*, |Δθ|\n"
+                 "shrinks naturally.\n"      # |Δθ| به طور طبیعی کوچک می‌شود
+                 "Gradient ∝ distance\n"     # گرادیان متناسب با فاصله است
+                 "→ auto fine-tuning")       # → تنظیم دقیق خودکار
+    elif alpha < 1.0:
+        note2 = "Fast approach\nSmall final steps\n(MSE's natural\n step reduction)"
+    else:
+        # برای α بزرگ: گام‌ها بزرگ می‌مانند یا حتی بزرگتر می‌شوند → واگرایی
+        note2 = "θ oscillates wildly!\n|Δθ| grows or stays large.\n→ instability"
+
+    ax2.text(0.55, 0.97, note2, transform=ax2.transAxes, fontsize=8, va="top",
+             bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+plt.tight_layout()  # تنظیم خودکار فاصله
+plt.show()
+
+# ── جدول خلاصه نهایی ──────────────────────────────────────────────────────────
+print("=" * 65)
+print(f"  {'α':>6}  {'final θ':>10}  {'final J':>10}  {'converged?':>12}")
+print("=" * 65)
+for sc in scenarios:
+    t = 0.0  # نقطه شروع
+    for _ in range(200):
+        t = t - sc["alpha"] * gJ(t)  # ۲۰۰ گام GD
+        if abs(t) > 100:
+            break  # اگر واگرا شد، خارج شو
+    # بررسی همگرایی: آیا θ به اندازه کافی به مینیمم (θ*=2) نزدیک شده؟
+    converged = "YES" if abs(t - 2) < 0.01 else "NO  (diverged)"
+    print(f"  {sc['alpha']:>6.2f}  {t:>10.4f}  {J(t):>10.4f}  {converged}")

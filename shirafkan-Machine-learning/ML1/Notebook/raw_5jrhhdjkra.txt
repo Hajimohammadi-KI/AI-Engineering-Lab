@@ -1,0 +1,223 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  نکته ۶ — اهمیت حیاتی مقیاس‌بندی ویژگی‌ها (Feature Scaling)
+#
+#  فرض کنید دو ویژگی داریم:
+#    x₀: متراژ خانه (مقادیر بین 50 تا 500 متر مربع)
+#    x₁: تعداد اتاق (مقادیر بین 1 تا 5)
+#
+#  در این حالت، وزن W₀ باید بسیار کوچک باشد (چون x₀ بزرگ است)
+#  و وزن W₁ می‌تواند بزرگ‌تر باشد.
+#  نقشه تابع هزینه به شکل یک بیضی کشیده درمی‌آید:
+#    → محور W₀ بسیار باریک، محور W₁ بسیار پهن
+#    → گرادیان کاهشی در طول بیضی نوسان می‌کند (زیگزاگ)
+#    → همگرایی بسیار کند می‌شود
+#
+#  پس از نرمال‌سازی (مثلاً StandardScaler):
+#    هر دو ویژگی مقیاس مشابه دارند → نقشه هزینه دایره‌ای می‌شود
+#    → GD مستقیم به مینیمم می‌رود → همگرایی سریع
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── ساخت ۳ نمودار کنار هم ─────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 3, figsize=(17, 5))
+fig.suptitle("Note 6 — Feature Scaling: Circular vs Elongated Cost Contours",
+             fontsize=13, fontweight="bold")
+
+# ── ساخت شبکه پارامترها (W0, W1) برای رسم خطوط تراز ────────────────────────
+W0_range = np.linspace(-2, 2, 300)  # 300 مقدار برای W0 از -2 تا +2
+W1_range = np.linspace(-2, 2, 300)  # 300 مقدار برای W1 از -2 تا +2
+
+# np.meshgrid: از دو آرایه یک‌بعدی، دو ماتریس دوبعدی می‌سازد
+# WW0[i,j] = W0_range[j], WW1[i,j] = W1_range[i]
+# برای رسم سطح دوبعدی J(W0, W1) روی همه ترکیبات ممکن
+WW0, WW1 = np.meshgrid(W0_range, W1_range)
+
+# ── تعریف توابع هزینه با و بدون مقیاس‌بندی ──────────────────────────────────
+
+# هزینه بدون مقیاس‌بندی: J = scale_big·W0² + scale_small·W1²
+# این شکل نمایش‌دهنده حالتی است که x₀ مقیاس بزرگ (مثلاً متراژ=500)
+# و x₁ مقیاس کوچک (مثلاً اتاق=1-5) دارد.
+# ضریب 1000 برای W0² → محور W0 بیضی خیلی باریک (حساس) می‌شود
+# ضریب 0.001 برای W1² → محور W1 بیضی خیلی پهن (کند) می‌شود
+J_unscaled = 1000 * WW0**2 + 0.001 * WW1**2
+
+# هزینه با مقیاس‌بندی: J = W0² + W1²
+# بعد از نرمال‌سازی، هر دو ویژگی مقیاس مشابه دارند
+# → ضرایب برابر → کانتورهای دایره‌ای شکل
+J_scaled = WW0**2 + WW1**2
+
+# ── نمودار اول (چپ): خطوط تراز بدون مقیاس‌بندی ─────────────────────────────
+ax = axes[0]
+
+# سطوح خطوط تراز (مقادیر ثابت J که روی آن‌ها خط می‌کشیم)
+levels_ell = [0.005, 0.05, 0.2, 0.5, 1.0, 2.0]
+
+# ax.contour: رسم خطوط تراز (کانتور) روی نقشه دوبعدی
+# هر خط = مجموعه نقاطی که J(W0,W1) در آن‌ها مقدار ثابتی دارد
+cs1 = ax.contour(WW0, WW1, J_unscaled, levels=levels_ell, cmap="coolwarm")
+ax.clabel(cs1, fontsize=7)  # نوشتن مقدار J روی هر خط تراز
+
+ax.set_aspect("equal")  # نسبت ابعاد یکسان → دایره واقعاً دایره باشد
+ax.set_xlabel("W0  (feature with large scale)")  # محور W0 (ویژگی با مقیاس بزرگ)
+ax.set_ylabel("W1  (feature with small scale)")  # محور W1 (ویژگی با مقیاس کوچک)
+ax.set_title("WITHOUT Feature Scaling\nVery elongated ellipses")
+ax.scatter([0], [0], color="red", s=100, zorder=6, label="Global minimum")
+
+# ── شبیه‌سازی مسیر GD روی سطح بدون مقیاس‌بندی (زیگزاگ) ──────────────────────
+# نرخ یادگیری باید کوچک باشد چون گرادیان برای W0 بسیار بزرگ است
+alpha_unscaled = 0.0005
+
+w0, w1 = 1.8, 1.8      # نقطه شروع: گوشه بالاسمت راست
+path_unscaled = [(w0, w1)]  # لیست مسیر حرکت
+
+for _ in range(30):  # 30 گام
+    # گرادیان J نسبت به W0: ∂J/∂W0 = 2·1000·W0 = 2000·W0
+    # (ضریب 1000 از تابع هزینه J = 1000·W0² می‌آید)
+    dw0 = 2000 * w0
+
+    # گرادیان J نسبت به W1: ∂J/∂W1 = 2·0.001·W1 = 0.002·W1
+    # (ضریب 0.001 از تابع هزینه J = 0.001·W1² می‌آید)
+    dw1 = 0.002 * w1
+
+    # به‌روزرسانی W0 و W1 با قانون گرادیان کاهشی: W_new = W_old - α·∇J
+    w0 = w0 - alpha_unscaled * dw0
+    w1 = w1 - alpha_unscaled * dw1
+    path_unscaled.append((w0, w1))
+
+# تبدیل لیست به آرایه NumPy برای رسم آسان
+path_unscaled = np.array(path_unscaled)
+
+# رسم مسیر GD: خط آبی با نقاط
+ax.plot(path_unscaled[:, 0], path_unscaled[:, 1],
+        "steelblue", linewidth=1.5, marker="o", markersize=3,
+        label="GD path (zigzag)")  # مسیر زیگزاگی
+
+# نشان‌گذاری نقطه شروع
+ax.annotate("start", xy=path_unscaled[0], fontsize=8, color="steelblue",
+            xytext=(path_unscaled[0,0]+0.05, path_unscaled[0,1]+0.15))
+ax.legend(fontsize=8)
+ax.text(0.02, 0.15,
+        "GD zigzags between\n"         # GD بین دیوارهای بیضی نوسان می‌کند
+        "the steep walls of\n"         # دیوارهای تند بیضی کشیده
+        "the elongated ellipse.\n"
+        "→ SLOW convergence",          # → همگرایی کند
+        transform=ax.transAxes, fontsize=8,
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار دوم (میانی): خطوط تراز با مقیاس‌بندی ─────────────────────────────
+ax = axes[1]
+
+levels_circ = [0.1, 0.3, 0.6, 1.0, 1.5, 2.0]  # سطوح برای کانتورهای دایره‌ای
+cs2 = ax.contour(WW0, WW1, J_scaled, levels=levels_circ, cmap="coolwarm")
+ax.clabel(cs2, fontsize=7)  # نوشتن مقدار J روی هر خط
+
+ax.set_aspect("equal")       # نسبت ابعاد یکسان
+ax.set_xlabel("W0  (after normalization)")   # بعد از نرمال‌سازی
+ax.set_ylabel("W1  (after normalization)")
+ax.set_title("WITH Feature Scaling\nCircular contours")
+ax.scatter([0], [0], color="red", s=100, zorder=6, label="Global minimum")
+
+# ── شبیه‌سازی مسیر GD روی سطح نرمال‌شده (مستقیم) ────────────────────────────
+# نرخ یادگیری بزرگتر مجاز است چون گرادیان‌ها متعادل هستند
+alpha_scaled = 0.2
+
+w0, w1 = 1.8, 1.8           # نقطه شروع یکسان
+path_scaled = [(w0, w1)]     # لیست مسیر
+
+for _ in range(12):  # فقط 12 گام کافی است (خیلی سریع‌تر از 30 گام)
+    # گرادیان J=W0²+W1² نسبت به W0: ∂J/∂W0 = 2·W0
+    dw0 = 2 * w0
+    # گرادیان J=W0²+W1² نسبت به W1: ∂J/∂W1 = 2·W1
+    dw1 = 2 * w1
+
+    # به‌روزرسانی پارامترها
+    w0 = w0 - alpha_scaled * dw0  # W0_new = W0 - α·2·W0
+    w1 = w1 - alpha_scaled * dw1  # W1_new = W1 - α·2·W1
+    path_scaled.append((w0, w1))
+
+path_scaled = np.array(path_scaled)
+
+# رسم مسیر مستقیم GD با خط سبز
+ax.plot(path_scaled[:, 0], path_scaled[:, 1],
+        "green", linewidth=2, marker="o", markersize=4,
+        label="GD path (straight)")  # مسیر مستقیم
+
+ax.annotate("start", xy=path_scaled[0], fontsize=8, color="green",
+            xytext=(path_scaled[0,0]+0.05, path_scaled[0,1]+0.15))
+ax.legend(fontsize=8)
+ax.text(0.02, 0.15,
+        "GD goes nearly straight\n"    # GD تقریباً مستقیم می‌رود
+        "toward the minimum.\n"
+        "→ FAST convergence\n"         # → همگرایی سریع
+        "→ fewer iterations needed",   # → تعداد کمتری تکرار لازم است
+        transform=ax.transAxes, fontsize=8,
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+# ── نمودار سوم (راست): مقایسه تعداد گام تا همگرایی ──────────────────────────
+ax = axes[2]
+
+def count_steps_to_converge(scale_ratio, alpha, tol=1e-3, max_iter=2000):
+    """
+    تعداد گام‌های لازم برای رسیدن به |W| < tol را برمی‌گرداند.
+    scale_ratio: نسبت مقیاس‌های دو ویژگی (بزرگتر = بیضی کشیده‌تر)
+    alpha: نرخ یادگیری
+    tol: آستانه همگرایی (چقدر به مینیمم نزدیک شویم)
+    max_iter: حداکثر تکرار (اگر همگرا نشد، همین مقدار برگردانده می‌شود)
+    """
+    w0, w1 = 1.8, 1.8  # نقطه شروع
+    for i in range(max_iter):
+        # گرادیان با نسبت مقیاس: محور W0 سخت، محور W1 ساده
+        dw0 = 2 * scale_ratio * w0  # گرادیان محور کشیده‌شده
+        dw1 = 2 / scale_ratio * w1  # گرادیان محور فشرده‌شده
+        w0 = w0 - alpha * dw0
+        w1 = w1 - alpha * w1 * 2   # گرادیان سطح نرمال برای W1
+        # شرط توقف: فاصله اقلیدسی از مینیمم کمتر از tol
+        if np.sqrt(w0**2 + w1**2) < tol:
+            return i
+    return max_iter  # همگرا نشد، بیشینه تکرار برگردان
+
+# محاسبه تعداد گام برای ۵ تنظیم مختلف α با و بدون مقیاس‌بندی
+alphas_unscaled = [0.0001, 0.0003, 0.001, 0.003, 0.005]  # α های کوچک (بدون مقیاس)
+alphas_scaled   = [0.05,   0.1,    0.15,  0.2,   0.25]   # α های بزرگ‌تر (با مقیاس)
+
+steps_unscaled_list = []  # لیست تعداد گام بدون مقیاس‌بندی
+steps_scaled_list   = []  # لیست تعداد گام با مقیاس‌بندی
+
+# بدون مقیاس‌بندی: scale_ratio=31.6 شبیه‌سازی تفاوت مقیاس بزرگ
+for a in alphas_unscaled:
+    su = count_steps_to_converge(scale_ratio=31.6, alpha=a, max_iter=5000)
+    steps_unscaled_list.append(su)
+
+# با مقیاس‌بندی: scale_ratio=1.0 یعنی مقیاس‌های برابر
+for a in alphas_scaled:
+    ss = count_steps_to_converge(scale_ratio=1.0, alpha=a, max_iter=5000)
+    steps_scaled_list.append(ss)
+
+# رسم نمودار میله‌ای مقایسه‌ای
+x_bar = np.arange(5)   # شاخص ۵ پیکربندی
+
+# میله‌های نارنجی: بدون مقیاس‌بندی
+bars1 = ax.bar(x_bar - 0.2, steps_unscaled_list, 0.4,
+               color="darkorange", alpha=0.85, label="Without scaling (various α)")
+
+# میله‌های سبز: با مقیاس‌بندی
+bars2 = ax.bar(x_bar + 0.2, steps_scaled_list,   0.4,
+               color="green",      alpha=0.85, label="With scaling (various α)")
+
+ax.set_xlabel("Configuration index")   # شاخص پیکربندی (هر آزمایش)
+ax.set_ylabel("Steps to convergence")  # تعداد گام تا همگرایی
+ax.set_title("Steps Needed to Converge\n(scaling dramatically reduces iterations)")
+ax.legend(fontsize=9)
+ax.text(0.02, 0.97,
+        "Feature scaling typically\n"        # مقیاس‌بندی معمولاً
+        "reduces steps by 10x–100x.\n"       # تعداد گام را ۱۰ تا ۱۰۰ برابر کم می‌کند
+        "StandardScaler: (x−μ)/σ\n"          # استانداردسازی: (x-میانگین)/انحراف‌معیار
+        "MinMaxScaler: (x−min)/(max−min)",   # مقیاس‌بندی Min-Max: بین 0 و 1
+        transform=ax.transAxes, fontsize=8, va="top",
+        bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+plt.tight_layout()  # تنظیم خودکار فاصله
+plt.show()
+
+# ── خلاصه چاپی ───────────────────────────────────────────────────────────────
+print("Note 6: Feature scaling transforms elongated elliptical contours to circular ones.")
+print("        GD path becomes direct instead of zigzag → much faster convergence.")
