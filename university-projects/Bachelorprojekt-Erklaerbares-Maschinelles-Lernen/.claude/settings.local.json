@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \" import json with open\\(''notebooks/baselinemodel_block.ipynb'', ''r'', encoding=''utf-8''\\) as f: nb = json.load\\(f\\) # Find outputs that mention per-class accuracy with totals for cell in nb[''cells'']: outputs = cell.get\\(''outputs'', []\\) for out in outputs: text = ''''.join\\(out.get\\(''text'', []\\)\\) if ''Per-Class'' in text and ''total'' in text.lower\\(\\): print\\(text[:2000]\\) print\\(''---''\\) break \")"
+    ]
+  }
+}
