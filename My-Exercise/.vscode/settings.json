@@ -1,0 +1,13 @@
+{
+    "[markdown]": {
+  "editor.fontFamily": "Georgia, 'Times New Roman', serif",
+  "editor.fontSize": 16,
+  "editor.lineHeight": 28,
+  "editor.wordWrap": "on"
+}
+}
+{
+  "markdown.styles": [
+    "markdown-preview.css"
+  ]
+}
