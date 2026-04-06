@@ -1,13 +1,26 @@
 {
     "[markdown]": {
-  "editor.fontFamily": "Georgia, 'Times New Roman', serif",
-  "editor.fontSize": 16,
-  "editor.lineHeight": 28,
-  "editor.wordWrap": "on"
-}
-}
-{
-  "markdown.styles": [
-    "markdown-preview.css"
-  ]
+        "editor.fontFamily": "Georgia, 'Times New Roman', serif",
+        "editor.fontSize": 16,
+        "editor.lineHeight": 28,
+        "editor.wordWrap": "on"
+    },
+
+    "[jupyter]": {
+        "editor.fontSize": 16,
+        "editor.lineHeight": 28,
+        "editor.wordWrap": "on"
+    },
+
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.python"
+    },
+
+    "editor.formatOnSave": true,
+    "notebook.lineNumbers": "on",
+    "notebook.output.textLineLimit": 200,
+
+    "markdown.styles": [
+        "markdown-preview.css"
+    ]
 }
